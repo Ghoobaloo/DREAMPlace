@@ -1,5 +1,7 @@
 # DREAMPlace
 
+> **📍 Note**: This fork includes transport-informed gradient fields for density optimization. See [`dreamplace/ops/flow_based_density_potential/`](./dreamplace/ops/flow_based_density_potential/) for our implementation.
+
 Deep learning toolkit-enabled VLSI placement.
 With the analogy between nonlinear VLSI placement and deep learning training problem, this tool is developed with deep learning toolkit for flexibility and efficiency.
 The tool runs on both CPU and GPU.
