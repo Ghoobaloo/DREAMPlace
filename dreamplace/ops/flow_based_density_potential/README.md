@@ -25,9 +25,9 @@ Where `ρ₀` is current density, `ρ₁` is target density, and `v = -∇φ` gi
 - [x] Transport visualization tools
 
 ### Current Issues
-- **Too slow**: 30-60 seconds per solve, needs to be much faster for practical use
-- **Optimization**: Partially optimized with PyTorch JIT, may need C++ kernels
-- **Testing**: Verifying obstacle awareness and full integration
+- **Too slow**: 30-60 seconds per solve, needs to be much faster to even test with DREAMPlace
+- **Optimization**: Partially optimized with PyTorch JIT. There are a few more multigrid-related operations that could be sped up. Although we are limited to a Mac CPU, we will exhaust the torch-related tricks at our disposal. If we still require additional performance, we will rewrite sections of the solver in C++.
+- **Testing**: One final bit of testing is required to verify that velocity fields correctly interact with fixed obstacles.
 
 ## Results
 
