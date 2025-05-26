@@ -4,7 +4,7 @@ Chip placement optimization using optimal transport theory instead of electrosta
 
 ## 📄 Project Overview
 
-**[📖 Read our Report](https://github.com/Ghoobaloo/DREAMPlace/blob/main/dreamplace/ops/flow_based_density_potential/Transport_Informed_Gradient_Fields_for_Global_Placement.pdf)**
+**[📖 Read our Report](https://github.com/Ghoobaloo/DREAMPlace/blob/master/dreamplace/ops/flow_based_density_potential/Transport_Informed_Gradient_Fields_for_Global_Placement.pdf)**
 
 ## Method
 
