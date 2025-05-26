@@ -4,7 +4,7 @@ Chip placement optimization using optimal transport theory instead of electrosta
 
 ## 📄 Project Overview
 
-**[📖 Read the Full Paper](DREAMPlace/dreamplace/ops/flow_based_density_potential/Transport_Informed_Gradient_Fields_for_DREAMPlace.pdf)**
+**[📖 Read our Report](./DREAMPlace/dreamplace/ops/flow_based_density_potential/Transport_Informed_Gradient_Fields_for_DREAMPlace.pdf)**
 
 ## Method
 
@@ -34,13 +34,13 @@ Where `ρ₀` is current density, `ρ₁` is target density, and `v = -∇φ` gi
 Transport velocity fields correctly show mass movement from source to target distributions:
 
 ### Three Gaussians → Uniform Distribution
-![Multimodal Transport](DREAMPlace/dreamplace/ops/flow_based_density_potential/figures/multimodal_transport_256x256_10_v_cycles.png)
+![Multimodal Transport](./DREAMPlace/dreamplace/ops/flow_based_density_potential/figures/multimodal_transport_256x256_10_v_cycles.png)
 
 ### Single Gaussian → Uniform Distribution  
-![Gaussian to Uniform](DREAMPlace/dreamplace/ops/flow_based_density_potential/figures/transport_visualization_64x64_gauss_to_uniform.png)
+![Gaussian to Uniform](./DREAMPlace/dreamplace/ops/flow_based_density_potential/figures/transport_visualization_64x64_gauss_to_uniform.png)
 
 ### Gaussian → Gaussian Transport
-![Two Gaussians](DREAMPlace/dreamplace/ops/flow_based_density_potential/figures/transport_visualization_64x64_two_gauss.png)
+![Two Gaussians](./DREAMPlace/dreamplace/ops/flow_based_density_potential/figures/transport_visualization_64x64_two_gauss.png)
 
 *Each visualization shows four panels: source density, target density, velocity field (arrows), and transport streamlines.*
 
@@ -58,7 +58,6 @@ transport_informed_dreamplace/
 ```
 
 ## Getting Started
-
 Follow the same steps to download and install DREAMPlace on your system. Then, run the following:
 
 ```bash
