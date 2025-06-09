@@ -4,7 +4,7 @@ Chip placement optimization using optimal transport theory instead of electrosta
 
 ## 📄 Project Overview
 
-**[📖 Read our Report](https://github.com/Ghoobaloo/DREAMPlace/blob/master/dreamplace/ops/flow_based_density_potential/Transport_Informed_Gradient_Fields_for_Global_Placement.pdf)**
+**[📖 Read our Report](https://github.com/Ghoobaloo/DREAMPlace/blob/master/dreamplace/ops/flow_based_density_potential/transport_informed_gradient_fields_for_DREAMPlace.pdf)**
 
 ## Method
 
@@ -23,24 +23,31 @@ Where `ρ₀` is current density, `ρ₁` is target density, and `v = -∇φ` gi
 - [x] Multigrid Poisson solver with verification
 - [x] DREAMPlace integration scaffold  
 - [x] Transport visualization tools
+- [x] Solution optimization to run 512x512 solves in less than 2 seconds
+- [x] Progressive Window Expansion for smoother convergence
+- [x] Electrostatic warmup and cooldown periods for the first and last 25 iterations
 
-### Current Issues
-- **Too slow**: 30-60 seconds per solve, needs to be much faster to even test with DREAMPlace
-- **Optimization**: Partially optimized with PyTorch JIT. There are a few more multigrid-related operations that could be sped up. Although we are limited to a Mac CPU, we will exhaust the torch-related tricks at our disposal. If we still require additional performance, we will rewrite sections of the solver in C++.
-- **Testing**: One final bit of testing is required to verify that velocity fields correctly interact with fixed obstacles.
-
-## Results
+## Visual Results
 
 Transport velocity fields correctly show mass movement from source to target distributions:
 
-### Three Gaussians → Uniform Distribution
-![Multimodal Transport](https://github.com/Ghoobaloo/DREAMPlace/blob/master/dreamplace/ops/flow_based_density_potential/figures/multimodal_transport_256x256_10_v_cycles.png)
+### Three Gaussians → Uniform Distribution (256x256)
+![Three Gaussians to Uniform](https://github.com/Ghoobaloo/DREAMPlace/blob/master/dreamplace/ops/flow_based_density_potential/figures/transport_visualization_256x256_trimodal_gauss_to_uniform_10_v_cycles.png)
 
-### Single Gaussian → Uniform Distribution  
+### Single Gaussian → Uniform Distribution (64x64)
 ![Gaussian to Uniform](https://github.com/Ghoobaloo/DREAMPlace/blob/master/dreamplace/ops/flow_based_density_potential/figures/transport_visualization_64x64_gauss_to_uniform.png)
 
-### Gaussian → Gaussian Transport
+### Gaussian → Gaussian Transport (64x64)
 ![Two Gaussians](https://github.com/Ghoobaloo/DREAMPlace/blob/master/dreamplace/ops/flow_based_density_potential/figures/transport_visualization_64x64_two_gauss.png)
+
+### Hexagonal Honeycomb Pattern -> Uniform Distribution (2048x2048)
+![Hexagonal Honeycomb to Uniform](https://github.com/Ghoobaloo/DREAMPlace/blob/master/dreamplace/ops/flow_based_density_potential/figures/transport_visualization_2048x2048_hexagonal_honeycomb_to_uniform_20_v_cycles_4_smooth.png)
+
+### Three Gaussians -> Concentric Ring Pattern (2048x2048)
+![Three Gaussians to Concentric Rings](https://github.com/Ghoobaloo/DREAMPlace/blob/master/dreamplace/ops/flow_based_density_potential/figures/transport_visualization_2048x2048_trimodal_gauss_to_concentric_rings_20_v_cycles_smooth_4.png)
+
+### Example of Smooth Field Generation via Progressive Window Expansion (16x16)
+![Three Gaussians to Concentric Rings](https://github.com/Ghoobaloo/DREAMPlace/blob/master/dreamplace/ops/flow_based_density_potential/figures/transport_visualization_example_of_progressive_window_expansion_on_16x16.png)
 
 *Each visualization shows four panels: source density, target density, velocity field (arrows), and transport streamlines.*
 
@@ -49,18 +56,34 @@ Transport velocity fields correctly show mass movement from source to target dis
 ```
 transport_informed_dreamplace/
 ├── DREAMPlace/                              # DREAMPlace submodule
-│   └── dreamplace/ops/flow_based_density_potential/
-│       ├── multigrid_poisson_solver.py     # Core solver
-│       ├── flow_based_density_overflow.py  # Density computation  
+│  └── test/train_and_test_input_json        # Provided training and test input JSON files for Placement Initialization
+│  └── train_and_test_sample_metadata/       # Contains corresponding lef/def/netlist files for the training and test circuits provided for project evaluation. You will need to unzip these files to use them
+│  └── results/                              # Contains all results of Transport-Informed DREAMPlace runs including output terminal logs
+│    └── dreamplace/PlaceObj.py                           # Modified to use the new Transport-Informed gradient fields, with electrostatic warmup and cooldown
+│    └── dreamplace/ops/flow_based_density_potential/
+│       ├── optimized_multi_grid_solver.py     # Updated solver
+│       ├── original_multi_grid_solver.py      # Original solver
+│       ├── flow_based_density_overflow.py  # Density computation with Progressive Window Expansion implementation
 │       ├── flow_based_density_potential.py # DREAMPlace interface
-│       ├── Transport_Informed_Gradient_Fields_for_DREAMPlace.pdf  # Project report
-│       └── figures/                         # Results
+│       ├── transport_informed_gradient_fields_for_DREAMPlace.pdf  # Project report
+│       └── figures/                         # Visual Results
 ```
 
 ## Getting Started
-Follow the same steps to download and install DREAMPlace on your system. Then, run the following:
+Follow the same steps to download and install DREAMPlace on your system. Then, run the following to generate some sample visualizations:
 
 ```bash
 cd transport_informed_dreamplace/DREAMPlace/dreamplace/ops/flow_based_density_potential/
-python multigrid_poisson_solver.py  # Run tests
+python original_multi_grid_solver.py  # Run tests on the original implementation
+python test_multi_grid_solver.py # Run tests on the faster implementation
 ```
+
+Using these Transport-Informed gradient fields with electrostatic warmup and cooldown periods is enabled by default, so you can run DREAMPlace as usual:
+
+```bash
+python dreamplace/Placer.py test/train_and_test_input_json/asap7_gcd.json > results/output_logs/asap7_gcd.out
+``` 
+
+Note that during the installation you will generate an `install' directory, which contains compiled files necessary for running DREAMPlace. You will likely need to navigate to this directory to run the above commands. If you run into pathing issues as a result, just update the `.json' file paths in the `test/train_and_test_input_json` directory to point to the correct locations of your LEF/DEF/netlist files.
+
+If you run into any issues, please don't hesitate to reach out to us via the GitHub issues page or by email. We will be happy to help you.

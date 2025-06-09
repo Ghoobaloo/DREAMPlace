@@ -24,6 +24,8 @@ else:
 import dreamplace.ops.weighted_average_wirelength.weighted_average_wirelength as weighted_average_wirelength
 import dreamplace.ops.logsumexp_wirelength.logsumexp_wirelength as logsumexp_wirelength
 import dreamplace.ops.density_overflow.density_overflow as density_overflow
+import dreamplace.ops.flow_based_density_potential.flow_based_density_overflow as flow_based_density_overflow
+import dreamplace.ops.flow_based_density_potential.flow_based_density_potential as flow_based_density_potential
 import dreamplace.ops.electric_potential.electric_overflow as electric_overflow
 import dreamplace.ops.electric_potential.electric_potential as electric_potential
 import dreamplace.ops.density_potential.density_potential as density_potential
@@ -223,6 +225,14 @@ class PlaceObj(nn.Module):
         else:
             assert 0, "unknown wirelength model %s" % (
                 global_place_params["wirelength"])
+            
+
+        # NOTE: This is where I will need to hook in my flow-based density overflow and potential operations
+        self.global_iteration_counter = 0
+        self.electrostatic_warmstart_ending_iteration = 25
+        self.electrostatic_cooldown_starting_iteration = params.global_place_stages[0]['iteration'] - 25
+
+        # import pdb; pdb.set_trace()
 
         self.op_collections.density_overflow_op = self.build_electric_overflow(
             params,
@@ -238,6 +248,37 @@ class PlaceObj(nn.Module):
             self.num_bins_x,
             self.num_bins_y,
             name=name)
+
+        # self.op_collections.electric_density_overflow_op = self.build_electric_overflow(
+        #     params,
+        #     placedb,
+        #     self.data_collections,
+        #     self.num_bins_x,
+        #     self.num_bins_y)
+
+        # self.op_collections.electric_density_op = self.build_electric_potential(
+        #     params,
+        #     placedb,
+        #     self.data_collections,
+        #     self.num_bins_x,
+        #     self.num_bins_y,
+        #     name=name)
+
+        self.op_collections.flow_based_density_overflow_op = self.build_flow_based_density_overflow(
+            params,
+            placedb,
+            self.data_collections,
+            self.num_bins_x,
+            self.num_bins_y)
+        
+        self.op_collections.flow_based_density_op = self.build_flow_based_density_potential(
+            params,
+            placedb,
+            self.data_collections,
+            self.num_bins_x,
+            self.num_bins_y,
+            name=name)
+
         ### build multiple density op for multi-electric field
         if len(self.placedb.regions) > 0:
             self.op_collections.fence_region_density_ops, self.op_collections.fence_region_density_merged_op, self.op_collections.fence_region_density_overflow_merged_op = self.build_multi_fence_region_density_op()
@@ -300,7 +341,19 @@ class PlaceObj(nn.Module):
         if len(self.placedb.regions) > 0:
             self.density = self.op_collections.fence_region_density_merged_op(pos)
         else:
-            self.density = self.op_collections.density_op(pos)
+
+            # Compute which block we're in to select the appropriate density function
+            use_electrostatic = self.global_iteration_counter < self.electrostatic_warmstart_ending_iteration or self.global_iteration_counter >= self.electrostatic_cooldown_starting_iteration
+            if (use_electrostatic):
+                raw = self.op_collections.density_op(pos)
+                # import pdb; pdb.set_trace()
+            else:
+                raw = self.op_collections.flow_based_density_op(pos)
+                # import pdb; pdb.set_trace()
+            # Original line below
+            # self.density = self.op_collections.density_op(pos)#, self.density_weight)
+
+            self.density = raw.unsqueeze(0) if raw.dim() == 0 else raw
 
         if self.init_density is None:
             ### record initial density
@@ -314,7 +367,10 @@ class PlaceObj(nn.Module):
         if len(self.placedb.regions) > 0:
             result = self.wirelength + self.density_weight.dot(self.density)
         else:
+            # self.density_weight = 1e-2
             result = torch.add(self.wirelength, self.density, alpha=(self.density_factor * self.density_weight).item())
+
+        # import pdb; pdb.set_trace()
 
         return result
 
@@ -397,6 +453,7 @@ class PlaceObj(nn.Module):
         @param pos locations of cells
         @return objective value
         """
+        self.global_iteration_counter += 1
         #self.check_gradient(pos)
         if pos.grad is not None:
             pos.grad.zero_()
@@ -544,6 +601,38 @@ class PlaceObj(nn.Module):
             num_movable_nodes=placedb.num_movable_nodes,
             num_terminals=placedb.num_terminals,
             num_filler_nodes=0)
+
+##################################################################################
+# OUR INTERFACE FOR FLOW-BASED DENSITY OVERFLOW
+##################################################################################
+    
+    def build_flow_based_density_overflow(self, params, placedb, data_collections,
+                                        num_bins_x, num_bins_y):
+        """
+        @brief Build operator for computing flow-based density overflow.
+        """
+        bin_size_x = (placedb.xh - placedb.xl) / num_bins_x
+        bin_size_y = (placedb.yh - placedb.yl) / num_bins_y
+
+        return flow_based_density_overflow.FlowBasedDensityOverflow(
+            node_size_x=data_collections.node_size_x,
+            node_size_y=data_collections.node_size_y,
+            bin_center_x=data_collections.bin_center_x_padded(placedb, 0, num_bins_x),
+            bin_center_y=data_collections.bin_center_y_padded(placedb, 0, num_bins_y),
+            target_density=data_collections.target_density,
+            xl=placedb.xl,
+            yl=placedb.yl,
+            xh=placedb.xh,
+            yh=placedb.yh,
+            bin_size_x=bin_size_x,
+            bin_size_y=bin_size_y,
+            num_movable_nodes=placedb.num_movable_nodes,
+            num_terminals=placedb.num_terminals,
+            num_filler_nodes=0,
+            padding=0,
+            deterministic_flag=params.deterministic_flag,
+            sorted_node_map=data_collections.sorted_node_map,
+            movable_macro_mask=data_collections.movable_macro_mask)
 
     def build_electric_overflow(self, params, placedb, data_collections,
                                 num_bins_x, num_bins_y):
@@ -701,7 +790,55 @@ class PlaceObj(nn.Module):
             padding=padding,
             sigma=(1.0 / 16) * placedb.width / bin_size_x,
             delta=2.0)
+    
+##################################################################################
+# OUR INTERFACE FOR FLOW-BASED DENSITY POTENTIAL
+##################################################################################
 
+    def build_flow_based_density_potential(
+        self,
+        params,
+        placedb,
+        data_collections,
+        num_bins_x,
+        num_bins_y,
+        name,
+        region_id=None,
+        fence_regions=None
+    ):
+        """
+        @brief Build operator to compute transport-informed potential field using multigrid.
+            Accepts fence region arguments for parity but does not act on them (yet).
+        """
+        bin_size_x = (placedb.xh - placedb.xl) / num_bins_x
+        bin_size_y = (placedb.yh - placedb.yl) / num_bins_y
+
+        return flow_based_density_potential.FlowBasedDensityPotential(
+            node_size_x=data_collections.node_size_x,
+            node_size_y=data_collections.node_size_y,
+            bin_center_x=data_collections.bin_center_x_padded(placedb, 0, num_bins_x),
+            bin_center_y=data_collections.bin_center_y_padded(placedb, 0, num_bins_y),
+            xl=placedb.xl,
+            yl=placedb.yl,
+            xh=placedb.xh,
+            yh=placedb.yh,
+            bin_size_x=bin_size_x,
+            bin_size_y=bin_size_y,
+            num_bins_x=num_bins_x,
+            num_bins_y=num_bins_y,
+            num_movable_nodes=placedb.num_movable_nodes,
+            num_terminals=placedb.num_terminals,
+            num_filler_nodes=placedb.num_filler_nodes,
+            deterministic_flag=params.deterministic_flag,
+            movable_macro_mask=data_collections.movable_macro_mask,
+            flow_overflow_op=self.op_collections.flow_based_density_overflow_op,
+            region_id=region_id, # currently not used
+            fence_regions=fence_regions, # currently not used
+            node2fence_region_map=data_collections.node2fence_region_map, # currently not used
+            placedb=placedb,
+            name=name
+        )
+    
     def build_electric_potential(self, params, placedb, data_collections,
                                  num_bins_x, num_bins_y, name, region_id=None, fence_regions=None):
         """
@@ -808,13 +945,20 @@ class PlaceObj(nn.Module):
             self.density_weight = self.density_weight_u * density_weight_s
 
         else:
-            density = self.op_collections.density_op(self.data_collections.pos[0])
+            density = self.op_collections.flow_based_density_op(self.data_collections.pos[0])#, current_density_weight=1.0) #NOTE: current_density_weight is only used for computing density grad norm
             ### record initial density
             self.init_density = density.data.clone()
             density.backward()
             density_grad_norm = self.data_collections.pos[0].grad.norm(p=1)
 
+            # grad_norm_ratio = torch.sqrt(wirelength_grad_norm / density_grad_norm)
+
+            # MIN_LAMBDA = 2.0e-6       # choose any floor that gives visible forces
+            # grad_norm_ratio = max(grad_norm_ratio, MIN_LAMBDA / params.density_weight)
+
             grad_norm_ratio = wirelength_grad_norm / density_grad_norm
+            # import pdb; pdb.set_trace()
+
             self.density_weight = torch.tensor(
                 [params.density_weight * grad_norm_ratio],
                 dtype=self.data_collections.pos[0].dtype,
